@@ -202,7 +202,6 @@ class Config(object):
         kwargs = dict(kwargs)
         name = self.or_current_device(name)
         room = self.or_current_room(room)
-        print(name, room, kwargs)
         with json_file(self.path) as config:
             room_config = config['rooms'][room]
             device = room_config['devices'][name]
@@ -263,24 +262,33 @@ class Config(object):
         name = self.or_current_group(name)
         devices = []
         with json_file(self.path) as config:
-            for room_name, room in config['rooms'].items():
+            if ':' in name:
+                room_name, name = name.split(':', 1)
+                room = config['rooms'][room_name]
                 for device_name, device in room['devices'].items():
                     if name in device.get('groups', []):
                         devices.append(f'{room_name}:{device_name}')
+            else:
+                for room_name, room in config['rooms'].items():
+                    for device_name, device in room['devices'].items():
+                        if name in device.get('groups', []):
+                            devices.append(f'{room_name}:{device_name}')
         return devices
 
     @valid_config
     def select_group(self, *args, name=None, **kwargs):
         if name is None:
             raise ValueError('group name must be provided')
-        if name not in self.list_group():
-            raise KeyError(f'unknown group {name}')
+        room_name, group_name = name.split(':', 1)
+        if group_name not in self.list_group():
+            raise KeyError(f'unknown group {group_name}')
         self.current_group = name
         logger.debug(f'Group {name} selected')
 
     @valid_config
     def set_group(self, *args, name=None, state=None, **kwargs):
         name = self.or_current_group(name)
+        room_name, group_name = name.split(':', 1)
         if state is None:
             raise ValueError('must provide state to set device group')
         for device_path in self.devices_group(name=name):
@@ -291,7 +299,6 @@ class Config(object):
     def help_service(self, *args, name=None, **kwargs):
         if name is None:
             raise ValueError('service name must be provided')
-        # print help for service
         f = getattr(self, f'help_{name}_service')
         if not callable(f):
             raise ValueError(f'unknown service {name}')
